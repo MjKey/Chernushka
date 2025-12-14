@@ -4,8 +4,7 @@ package ru.MjKey.chernushka.config;
  * Конфигурация мода Chernushka.
  * Поддерживает Cloth Config (если установлен) или простой JSON файл.
  */
-@me.shedaniel.autoconfig.annotation.Config(name = "chernushka")
-public class ModConfig implements me.shedaniel.autoconfig.ConfigData {
+public class ModConfig {
     
     // === General ===
     public boolean enableMiningHelp = true;

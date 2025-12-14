@@ -38,7 +38,7 @@ public class ConfigManager {
     }
     
     private static void initClothConfig() {
-        me.shedaniel.autoconfig.AutoConfig.register(ModConfig.class, 
+        me.shedaniel.autoconfig.AutoConfig.register(ClothModConfig.class, 
             me.shedaniel.autoconfig.serializer.GsonConfigSerializer::new);
     }
     
@@ -74,7 +74,9 @@ public class ConfigManager {
     public static ModConfig getConfig() {
         if (clothConfigAvailable) {
             try {
-                return me.shedaniel.autoconfig.AutoConfig.getConfigHolder(ModConfig.class).getConfig();
+                ClothModConfig clothConfig = me.shedaniel.autoconfig.AutoConfig
+                    .getConfigHolder(ClothModConfig.class).getConfig();
+                return clothConfig.toModConfig();
             } catch (Throwable e) {
                 // Fallback
             }
