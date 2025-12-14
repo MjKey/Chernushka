@@ -1,0 +1,63 @@
+{
+  "item.chernushka.chernushka_stick": "Chernushka Stick",
+  "item.chernushka.chernushka_stick.point_set": "Point set: %d, %d, %d",
+  "item.chernushka.chernushka_stick.selected": "Chernushka selected",
+  
+  "advancement.chernushka.root.title": "Chernushkas",
+  "advancement.chernushka.root.description": "Fluffy helpers await you",
+  
+  "advancement.chernushka.tame_chernushka.title": "New Friend",
+  "advancement.chernushka.tame_chernushka.description": "Treat the fluffball with coal",
+  
+  "advancement.chernushka.big_chernushka.title": "More Fluff!",
+  "advancement.chernushka.big_chernushka.description": "Two in one — space saver",
+  
+  "advancement.chernushka.giant_chernushka.title": "Absolute Unit",
+  "advancement.chernushka.giant_chernushka.description": "When size matters",
+  
+  "advancement.chernushka.tickle_chernushka.title": "Coochie-coo!",
+  "advancement.chernushka.tickle_chernushka.description": "Feather on the tummy",
+  
+  "advancement.chernushka.chernushka_army.title": "Army of Darkness",
+  "advancement.chernushka.chernushka_army.description": "Ten fluffy warriors under your command",
+  
+  "text.autoconfig.chernushka.title": "Chernushka Config",
+  
+  "text.autoconfig.chernushka.category.general": "General",
+  "text.autoconfig.chernushka.category.follow": "Follow Behavior",
+  
+  "text.autoconfig.chernushka.option.enableMiningHelp": "Enable Mining Help",
+  "text.autoconfig.chernushka.option.enableMiningHelp.@Tooltip": "Chernushkas help break blocks faster",
+  
+  "text.autoconfig.chernushka.option.miningSpeedBonusPercent": "Mining Speed Bonus (%)",
+  "text.autoconfig.chernushka.option.miningSpeedBonusPercent.@Tooltip": "Speed bonus per Chernushka (default: 10%)",
+  
+  "text.autoconfig.chernushka.option.helpRange": "Help Range",
+  "text.autoconfig.chernushka.option.helpRange.@Tooltip": "Range in blocks for mining assistance",
+  
+  "text.autoconfig.chernushka.option.followDistance": "Follow Distance",
+  "text.autoconfig.chernushka.option.followDistance.@Tooltip": "Distance to start following owner",
+  
+  "text.autoconfig.chernushka.option.stopDistance": "Stop Distance",
+  "text.autoconfig.chernushka.option.stopDistance.@Tooltip": "Distance to stop following",
+  
+  "text.autoconfig.chernushka.option.teleportDistance": "Teleport Distance",
+  "text.autoconfig.chernushka.option.teleportDistance.@Tooltip": "Distance to teleport to owner",
+  
+  "text.autoconfig.chernushka.option.walkSpeed": "Walk Speed",
+  "text.autoconfig.chernushka.option.walkSpeed.@Tooltip": "Normal walking speed",
+  
+  "text.autoconfig.chernushka.option.runSpeed": "Run Speed",
+  "text.autoconfig.chernushka.option.runSpeed.@Tooltip": "Running speed when far from owner",
+  
+  "text.autoconfig.chernushka.option.runDistanceThreshold": "Run Distance Threshold",
+  "text.autoconfig.chernushka.option.runDistanceThreshold.@Tooltip": "Distance to start running",
+  
+  "text.autoconfig.chernushka.option.showMiningMessages": "Mining Messages",
+  "text.autoconfig.chernushka.option.showMiningMessages.@Tooltip": "Show task notifications",
+  
+  "message.chernushka.task_added": "+1 queued (%d)",
+  "message.chernushka.queue_full": "Queue full (%d)",
+  "message.chernushka.already_queued": "Already queued",
+  "message.chernushka.no_nearby": "No chernushkas nearby"
+}

@@ -1,0 +1,8 @@
+accessWidener v2 named
+
+# Доступ к приватному методу регистрации рендереров
+accessible method net/minecraft/client/render/entity/EntityRendererFactories register (Lnet/minecraft/entity/EntityType;Lnet/minecraft/client/render/entity/EntityRendererFactory;)V
+
+# Доступ к полям ServerPlayerInteractionManager для ускорения ломания
+accessible field net/minecraft/server/network/ServerPlayerInteractionManager blockBreakingProgress I
+mutable field net/minecraft/server/network/ServerPlayerInteractionManager blockBreakingProgress I

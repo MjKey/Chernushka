@@ -1,0 +1,22 @@
+{
+  "parent": "chernushka:big_chernushka",
+  "display": {
+    "icon": {
+      "id": "minecraft:netherite_block"
+    },
+    "title": {
+      "translate": "advancement.chernushka.giant_chernushka.title"
+    },
+    "description": {
+      "translate": "advancement.chernushka.giant_chernushka.description"
+    },
+    "frame": "challenge",
+    "show_toast": true,
+    "announce_to_chat": true
+  },
+  "criteria": {
+    "giant": {
+      "trigger": "chernushka:giant_chernushka"
+    }
+  }
+}

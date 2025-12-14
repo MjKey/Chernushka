@@ -1,0 +1,22 @@
+{
+  "parent": "chernushka:big_chernushka",
+  "display": {
+    "icon": {
+      "id": "minecraft:feather"
+    },
+    "title": {
+      "translate": "advancement.chernushka.tickle_chernushka.title"
+    },
+    "description": {
+      "translate": "advancement.chernushka.tickle_chernushka.description"
+    },
+    "frame": "goal",
+    "show_toast": true,
+    "announce_to_chat": true
+  },
+  "criteria": {
+    "tickled": {
+      "trigger": "chernushka:tickle_chernushka"
+    }
+  }
+}

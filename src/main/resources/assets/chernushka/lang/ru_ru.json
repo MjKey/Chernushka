@@ -1,0 +1,63 @@
+{
+  "item.chernushka.chernushka_stick": "Палочка для чернушек",
+  "item.chernushka.chernushka_stick.point_set": "Точка установлена: %d, %d, %d",
+  "item.chernushka.chernushka_stick.selected": "Чернушка выбрана",
+  
+  "advancement.chernushka.root.title": "Чернушки",
+  "advancement.chernushka.root.description": "Милые помощники ждут тебя",
+  
+  "advancement.chernushka.tame_chernushka.title": "Новый друг",
+  "advancement.chernushka.tame_chernushka.description": "Угости чернушку углём",
+  
+  "advancement.chernushka.big_chernushka.title": "Большой черныш!",
+  "advancement.chernushka.big_chernushka.description": "Два в одном - экономия места",
+  
+  "advancement.chernushka.giant_chernushka.title": "Абсолютная единица",
+  "advancement.chernushka.giant_chernushka.description": "Когда размер имеет значение",
+  
+  "advancement.chernushka.tickle_chernushka.title": "Кути-кути!",
+  "advancement.chernushka.tickle_chernushka.description": "Пёрышком по пузику",
+  
+  "advancement.chernushka.chernushka_army.title": "Армия тьмы",
+  "advancement.chernushka.chernushka_army.description": "Десять милых воинов под твоим командованием",
+  
+  "text.autoconfig.chernushka.title": "Настройки Чернушки",
+  
+  "text.autoconfig.chernushka.category.general": "Общие",
+  "text.autoconfig.chernushka.category.follow": "Поведение следования",
+  
+  "text.autoconfig.chernushka.option.enableMiningHelp": "Помощь в добыче",
+  "text.autoconfig.chernushka.option.enableMiningHelp.@Tooltip": "Чернушки помогают ломать блоки быстрее",
+  
+  "text.autoconfig.chernushka.option.miningSpeedBonusPercent": "Бонус скорости добычи (%)",
+  "text.autoconfig.chernushka.option.miningSpeedBonusPercent.@Tooltip": "Бонус скорости за каждую Чернушку (по умолчанию: 10%)",
+  
+  "text.autoconfig.chernushka.option.helpRange": "Радиус помощи",
+  "text.autoconfig.chernushka.option.helpRange.@Tooltip": "Радиус в блоках для помощи в добыче",
+  
+  "text.autoconfig.chernushka.option.followDistance": "Дистанция следования",
+  "text.autoconfig.chernushka.option.followDistance.@Tooltip": "Расстояние для начала следования за владельцем",
+  
+  "text.autoconfig.chernushka.option.stopDistance": "Дистанция остановки",
+  "text.autoconfig.chernushka.option.stopDistance.@Tooltip": "Расстояние для остановки",
+  
+  "text.autoconfig.chernushka.option.teleportDistance": "Дистанция телепортации",
+  "text.autoconfig.chernushka.option.teleportDistance.@Tooltip": "Расстояние для телепортации к владельцу",
+  
+  "text.autoconfig.chernushka.option.walkSpeed": "Скорость ходьбы",
+  "text.autoconfig.chernushka.option.walkSpeed.@Tooltip": "Обычная скорость ходьбы",
+  
+  "text.autoconfig.chernushka.option.runSpeed": "Скорость бега",
+  "text.autoconfig.chernushka.option.runSpeed.@Tooltip": "Скорость бега когда далеко от владельца",
+  
+  "text.autoconfig.chernushka.option.runDistanceThreshold": "Порог дистанции бега",
+  "text.autoconfig.chernushka.option.runDistanceThreshold.@Tooltip": "Расстояние для начала бега",
+  
+  "text.autoconfig.chernushka.option.showMiningMessages": "Сообщения добычи",
+  "text.autoconfig.chernushka.option.showMiningMessages.@Tooltip": "Показывать уведомления о задачах",
+  
+  "message.chernushka.task_added": "+1 в очередь (%d)",
+  "message.chernushka.queue_full": "Очередь полна (%d)",
+  "message.chernushka.already_queued": "Уже в очереди",
+  "message.chernushka.no_nearby": "Нет чернушек рядом"
+}

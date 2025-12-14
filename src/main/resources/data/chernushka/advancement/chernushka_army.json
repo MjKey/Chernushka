@@ -1,0 +1,22 @@
+{
+  "parent": "chernushka:tame_chernushka",
+  "display": {
+    "icon": {
+      "id": "minecraft:diamond"
+    },
+    "title": {
+      "translate": "advancement.chernushka.chernushka_army.title"
+    },
+    "description": {
+      "translate": "advancement.chernushka.chernushka_army.description"
+    },
+    "frame": "goal",
+    "show_toast": true,
+    "announce_to_chat": true
+  },
+  "criteria": {
+    "army": {
+      "trigger": "chernushka:chernushka_army"
+    }
+  }
+}

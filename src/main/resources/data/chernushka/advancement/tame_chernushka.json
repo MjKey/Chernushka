@@ -1,0 +1,21 @@
+{
+  "parent": "chernushka:root",
+  "display": {
+    "icon": {
+      "id": "minecraft:coal"
+    },
+    "title": {
+      "translate": "advancement.chernushka.tame_chernushka.title"
+    },
+    "description": {
+      "translate": "advancement.chernushka.tame_chernushka.description"
+    },
+    "show_toast": true,
+    "announce_to_chat": true
+  },
+  "criteria": {
+    "tamed": {
+      "trigger": "chernushka:tame_chernushka"
+    }
+  }
+}

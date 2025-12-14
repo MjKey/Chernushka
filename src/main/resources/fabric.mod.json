@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 1,
+  "id": "chernushka",
+  "version": "${version}",
+  "name": "Chernushka",
+  "description": "Adds Chernushka — a cute tameable companion that helps you mine blocks, follows you around, and can merge with others to grow bigger!",
+  "authors": ["MjKey"],
+  "contact": {},
+  "license": "MIT",
+  "icon": "assets/chernushka/icon.png",
+  "environment": "*",
+  "entrypoints": {
+    "fabric-datagen": [
+      "ru.MjKey.chernushka.client.ChernushkaDataGenerator"
+    ],
+    "client": [
+      "ru.MjKey.chernushka.client.ChernushkaClient"
+    ],
+    "main": [
+      "ru.MjKey.chernushka.Chernushka"
+    ],
+    "modmenu": [
+      "ru.MjKey.chernushka.client.ModMenuIntegration"
+    ]
+  },
+  "accessWidener": "chernushka.accesswidener",
+  "mixins": [
+    "chernushka.mixins.json",
+    {
+      "config": "chernushka.client.mixins.json",
+      "environment": "client"
+    }
+  ],
+  "depends": {
+    "fabricloader": ">=${loader_version}",
+    "fabric": "*",
+    "minecraft": "${minecraft_version}",
+    "geckolib": "*"
+  },
+  "suggests": {
+    "modmenu": "*",
+    "cloth-config": "*"
+  },
+  "custom": {
+    "modmenu": {
+      "links": {
+        "modmenu.discord": "",
+        "modmenu.source": ""
+      }
+    }
+  }
+}

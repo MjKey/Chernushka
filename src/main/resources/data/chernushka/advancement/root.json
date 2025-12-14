@@ -1,0 +1,22 @@
+{
+  "display": {
+    "icon": {
+      "id": "chernushka:chernushka_stick"
+    },
+    "title": {
+      "translate": "advancement.chernushka.root.title"
+    },
+    "description": {
+      "translate": "advancement.chernushka.root.description"
+    },
+    "background": "chernushka:gui/advancements/backgrounds/chernushka",
+    "show_toast": false,
+    "announce_to_chat": false,
+    "hidden": true
+  },
+  "criteria": {
+    "tamed": {
+      "trigger": "chernushka:tame_chernushka"
+    }
+  }
+}

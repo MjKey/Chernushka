@@ -1,0 +1,21 @@
+{
+  "parent": "chernushka:tame_chernushka",
+  "display": {
+    "icon": {
+      "id": "minecraft:coal_block"
+    },
+    "title": {
+      "translate": "advancement.chernushka.big_chernushka.title"
+    },
+    "description": {
+      "translate": "advancement.chernushka.big_chernushka.description"
+    },
+    "show_toast": true,
+    "announce_to_chat": true
+  },
+  "criteria": {
+    "merged": {
+      "trigger": "chernushka:big_chernushka"
+    }
+  }
+}
