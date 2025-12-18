@@ -20,7 +20,11 @@ public class ModNetworking {
     public static final Identifier TOGGLE_CHERNUSHKAS_ID = Identifier.of(Chernushka.MOD_ID, "toggle_chernushkas");
     
     public static void register() {
+        // C2S пакеты
         PayloadTypeRegistry.playC2S().register(ToggleChernushkasPayload.ID, ToggleChernushkasPayload.CODEC);
+        
+        // S2C пакеты
+        PayloadTypeRegistry.playS2C().register(ChernushkaLocatorPayload.ID, ChernushkaLocatorPayload.CODEC);
         
         ServerPlayNetworking.registerGlobalReceiver(ToggleChernushkasPayload.ID, (payload, context) -> {
             ServerPlayerEntity player = context.player();

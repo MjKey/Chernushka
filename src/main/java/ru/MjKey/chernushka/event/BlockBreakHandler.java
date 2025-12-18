@@ -43,10 +43,9 @@ public class BlockBreakHandler {
         // Событие когда игрок начинает ломать блок (каждый тик атаки)
         AttackBlockCallback.EVENT.register((player, world, hand, pos, direction) -> {
             if (!world.isClient()) {
-                // Если игрок держит палочку для чернушек - добавляем задачу вместо помощи
+                // Палочка для чернушек - пропускаем, чтобы можно было ломать блоки
                 if (player.getStackInHand(hand).isOf(ModItems.CHERNUSHKA_STICK)) {
-                    assignMiningTaskToChernushka(world, player, pos);
-                    return ActionResult.SUCCESS;
+                    return ActionResult.PASS;
                 }
                 
                 // Запоминаем какой блок ломает игрок
