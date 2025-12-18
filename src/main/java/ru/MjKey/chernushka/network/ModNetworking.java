@@ -47,7 +47,7 @@ public class ModNetworking {
         
         // Проверяем, есть ли скрытые чернушки для этого игрока
         if (!hiddenList.isEmpty()) {
-            // Восстанавливаем чернушек рядом с игроком
+            // Восстанавливаем чернушек рядом с игроком с анимацией show
             BlockPos playerPos = player.getBlockPos();
             int index = 0;
             int total = hiddenList.size();
@@ -66,6 +66,8 @@ public class ModNetworking {
                         playerPos.getZ() + 0.5 + offsetZ,
                         0, 0
                     );
+                    // Запускаем анимацию show
+                    chernushka.setShowing(true);
                     world.spawnEntity(chernushka);
                     index++;
                 }
@@ -74,7 +76,7 @@ public class ModNetworking {
             // Очищаем список скрытых чернушек
             player.setAttached(ModAttachments.HIDDEN_CHERNUSHKAS, new ArrayList<>());
         } else {
-            // Скрываем (удаляем) чернушек
+            // Скрываем чернушек (мгновенно)
             List<ChernushkaEntity> ownedChernushkas = world.getEntitiesByType(
                 ModEntities.CHERNUSHKA,
                 player.getBoundingBox().expand(64),

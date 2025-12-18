@@ -26,19 +26,22 @@ public class BlockBreakHandler {
     public static void register() {
         System.out.println("[Chernushka] BlockBreakHandler registered!");
         
-        // Событие когда игрок кликает ПКМ по блоку с палочкой для чернушек - добавляем задачу
-        UseBlockCallback.EVENT.register((player, world, hand, hitResult) -> {
-            if (!world.isClient() && player.getStackInHand(hand).isOf(ModItems.CHERNUSHKA_STICK)) {
-                BlockPos pos = hitResult.getBlockPos();
-                
-                // Проверяем что блок не воздух
-                if (!world.getBlockState(pos).isAir()) {
-                    assignMiningTaskToChernushka(world, player, pos);
-                    return ActionResult.SUCCESS;
+        
+        
+            // Событие когда игрок кликает ПКМ по блоку с палочкой для чернушек - добавляем задачу
+            UseBlockCallback.EVENT.register((player, world, hand, hitResult) -> {
+                if (!world.isClient() && player.getStackInHand(hand).isOf(ModItems.CHERNUSHKA_STICK) && !player.isSneaking()) {
+                    BlockPos pos = hitResult.getBlockPos();
+                    
+                    // Проверяем что блок не воздух
+                    if (!world.getBlockState(pos).isAir()) {
+                        assignMiningTaskToChernushka(world, player, pos);
+                        return ActionResult.SUCCESS;
+                    }
                 }
-            }
-            return ActionResult.PASS;
-        });
+                return ActionResult.PASS;
+                
+            });
         
         // Событие когда игрок начинает ломать блок (каждый тик атаки)
         AttackBlockCallback.EVENT.register((player, world, hand, pos, direction) -> {

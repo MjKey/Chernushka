@@ -45,6 +45,7 @@ public class ChernushkaEntity extends PathAwareEntity implements GeoEntity {
     private static final TrackedData<Integer> MERGE_LEVEL = DataTracker.registerData(ChernushkaEntity.class, TrackedDataHandlerRegistry.INTEGER);
     private static final TrackedData<Integer> MERGE_TARGET_ID = DataTracker.registerData(ChernushkaEntity.class, TrackedDataHandlerRegistry.INTEGER);
     private static final TrackedData<Boolean> RUNNING = DataTracker.registerData(ChernushkaEntity.class, TrackedDataHandlerRegistry.BOOLEAN);
+    private static final TrackedData<Boolean> SHOWING = DataTracker.registerData(ChernushkaEntity.class, TrackedDataHandlerRegistry.BOOLEAN);
 
     
     // Уровни слияния: 0=1x, 1=1.5x, 2=2x, 3=2.5x, 4=3x, 5=5x (максимум 5 чернушек в одной)
@@ -63,6 +64,7 @@ public class ChernushkaEntity extends PathAwareEntity implements GeoEntity {
     protected static final RawAnimation JUMP_ANIM = RawAnimation.begin().thenLoop("jump");
     protected static final RawAnimation END_JUMP_ANIM = RawAnimation.begin().thenPlay("end_jump");
     protected static final RawAnimation RUN_ANIM = RawAnimation.begin().thenLoop("run");
+    protected static final RawAnimation SHOW_ANIM = RawAnimation.begin().thenPlay("show");
     
     private final AnimatableInstanceCache geoCache = GeckoLibUtil.createInstanceCache(this);
     
@@ -97,6 +99,14 @@ public class ChernushkaEntity extends PathAwareEntity implements GeoEntity {
     private int stoppingTicks = 0;
     private static final int STOPPING_DURATION = 5; // 0.25 секунды для stop_walk
     
+    // Состояние show анимации
+    private int showingTicks = 0;
+    private static final int SHOW_DURATION = 20; // 1 секунда (длина анимации show)
+    
+    // Деспавн диких чернушек
+    private int despawnTimer = -1; // -1 = не инициализирован
+    private static final int MIN_DESPAWN_TICKS = 5 * 60 * 20; // 5 минут в тиках
+    private static final int MAX_DESPAWN_TICKS = 20 * 60 * 20; // 20 минут в тиках
 
     
     public ChernushkaEntity(EntityType<? extends PathAwareEntity> entityType, World world) {
@@ -151,6 +161,14 @@ public class ChernushkaEntity extends PathAwareEntity implements GeoEntity {
             
             // Обработка процесса слияния
             processMergeMovement();
+            
+            // Обработка анимации show
+            if (this.showingTicks > 0) {
+                this.showingTicks--;
+                if (this.showingTicks <= 0) {
+                    setShowing(false);
+                }
+            }
             
             if (this.breakingBlockPos != null) {
                 this.breakingTimeout++;
@@ -239,6 +257,7 @@ public class ChernushkaEntity extends PathAwareEntity implements GeoEntity {
         builder.add(MERGE_LEVEL, 0);
         builder.add(MERGE_TARGET_ID, -1);
         builder.add(RUNNING, false);
+        builder.add(SHOWING, false);
     }
     
 
@@ -577,8 +596,12 @@ public class ChernushkaEntity extends PathAwareEntity implements GeoEntity {
     public void registerControllers(AnimatableManager.ControllerRegistrar controllers) {
         // Один контроллер для всех анимаций с приоритетами
         controllers.add(new AnimationController<>("movement", 5, state -> {
-            // Приоритет: специальные анимации > движение > idle
+            // Высший приоритет: show анимация (подъём из земли)
+            if (this.isShowing()) {
+                return state.setAndContinue(SHOW_ANIM);
+            }
             
+            // Приоритет: специальные анимации > движение > idle
             if (this.isLanding()) {
                 return state.setAndContinue(END_JUMP_ANIM);
             }
@@ -682,6 +705,42 @@ public class ChernushkaEntity extends PathAwareEntity implements GeoEntity {
         return getOwnerUuid() != null;
     }
     
+    @Override
+    public void checkDespawn() {
+        // Прирученные чернушки никогда не деспавнятся
+        if (isTamed()) {
+            despawnTimer = -1;
+            return;
+        }
+        
+        // Дикие чернушки деспавнятся только если далеко от игрока (128+ блоков)
+        // и прошло от 5 до 20 минут (рандомно)
+        if (this.getEntityWorld() instanceof ServerWorld serverWorld) {
+            PlayerEntity nearest = serverWorld.getClosestPlayer(this, -1.0);
+            if (nearest != null) {
+                double distSq = this.squaredDistanceTo(nearest);
+                
+                // Если игрок ближе 128 блоков - сбрасываем таймер
+                if (distSq < 128 * 128) {
+                    despawnTimer = -1;
+                    return;
+                }
+                
+                // Игрок далеко - запускаем/продолжаем таймер
+                if (despawnTimer < 0) {
+                    // Инициализируем рандомный таймер от 5 до 20 минут
+                    despawnTimer = MIN_DESPAWN_TICKS + random.nextInt(MAX_DESPAWN_TICKS - MIN_DESPAWN_TICKS);
+                }
+                
+                despawnTimer--;
+                
+                if (despawnTimer <= 0) {
+                    this.discard();
+                }
+            }
+        }
+    }
+    
     public boolean isHelping() {
         return this.dataTracker.get(HELPING);
     }
@@ -707,6 +766,17 @@ public class ChernushkaEntity extends PathAwareEntity implements GeoEntity {
     
     public void setRunning(boolean running) {
         this.dataTracker.set(RUNNING, running);
+    }
+    
+    public boolean isShowing() {
+        return this.dataTracker.get(SHOWING);
+    }
+    
+    public void setShowing(boolean showing) {
+        this.dataTracker.set(SHOWING, showing);
+        if (showing) {
+            this.showingTicks = SHOW_DURATION;
+        }
     }
     
     /**
