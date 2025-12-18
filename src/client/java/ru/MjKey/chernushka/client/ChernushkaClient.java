@@ -17,6 +17,9 @@ public class ChernushkaClient implements ClientModInitializer {
         // Обработчик двойного приседания
         SneakHandler.register();
         
+        // Локатор чернушек (частицы)
+        LocatorAuraRenderer.register();
+        
         // Обработчик пакета локатора
         ClientPlayNetworking.registerGlobalReceiver(ChernushkaLocatorPayload.ID, (payload, context) -> {
             context.client().execute(() -> {
