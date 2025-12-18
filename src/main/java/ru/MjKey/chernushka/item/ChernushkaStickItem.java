@@ -43,7 +43,7 @@ public class ChernushkaStickItem extends Item {
         int viewDistance = world.getServer().getPlayerManager().getViewDistance();
         float maxDistance = viewDistance * 16f;
         
-        Vec3d playerPos = player.getPos();
+        Vec3d playerPos = player.getEntityPos();
         Box searchBox = new Box(playerPos, playerPos).expand(maxDistance);
         
         // Ищем только диких (не прирученных) чернушек
@@ -65,7 +65,7 @@ public class ChernushkaStickItem extends Item {
                 .orElse(null);
             
             if (nearest != null) {
-                Vec3d chernushkaPos = nearest.getPos();
+                Vec3d chernushkaPos = nearest.getEntityPos();
                 Vec3d direction = chernushkaPos.subtract(playerPos).normalize();
                 float distance = (float) playerPos.distanceTo(chernushkaPos);
                 

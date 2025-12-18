@@ -3,7 +3,6 @@ package ru.MjKey.chernushka.item;
 import net.fabricmc.fabric.api.itemgroup.v1.ItemGroupEvents;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemGroups;
-import net.minecraft.item.SpawnEggItem;
 import net.minecraft.registry.Registries;
 import net.minecraft.registry.Registry;
 import net.minecraft.registry.RegistryKey;
@@ -22,9 +21,8 @@ public class ModItems {
     );
     
     public static final Item CHERNUSHKA_SPAWN_EGG = registerItem("ch_egg",
-        new SpawnEggItem(ModEntities.CHERNUSHKA, 0x1a1a1a, 0x4a4a4a,
-            new Item.Settings()
-                .registryKey(RegistryKey.of(RegistryKeys.ITEM, Identifier.of(Chernushka.MOD_ID, "ch_egg")))
+        new ChernushkaSpawnEggItem(new Item.Settings()
+            .registryKey(RegistryKey.of(RegistryKeys.ITEM, Identifier.of(Chernushka.MOD_ID, "ch_egg")))
         )
     );
     

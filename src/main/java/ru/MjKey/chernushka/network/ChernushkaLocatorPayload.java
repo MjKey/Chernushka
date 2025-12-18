@@ -28,7 +28,7 @@ public record ChernushkaLocatorPayload(
     );
     
     public static final PacketCodec<RegistryByteBuf, ChernushkaLocatorPayload> CODEC = PacketCodec.tuple(
-        PacketCodecs.BOOL, ChernushkaLocatorPayload::found,
+        PacketCodecs.BOOLEAN, ChernushkaLocatorPayload::found,
         PacketCodecs.FLOAT, ChernushkaLocatorPayload::distance,
         PacketCodecs.FLOAT, ChernushkaLocatorPayload::directionX,
         PacketCodecs.FLOAT, ChernushkaLocatorPayload::directionZ,
