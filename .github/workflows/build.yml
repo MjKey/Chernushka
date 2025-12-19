@@ -40,6 +40,5 @@ jobs:
         with:
           name: Mod-Artifacts
           # Загружаем все jar файлы из папки libs.
-          # Обычно это включает: сам мод, sources и dev версии.
           path: build/libs/*.jar
           if-no-files-found: error
