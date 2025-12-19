@@ -16,6 +16,8 @@ import software.bernie.geckolib.renderer.internal.RenderPassInfo;
  * - Куда идёт чернушка
  * - На владельца если рядом
  * - Случайно оглядываются когда стоят
+ * 
+ * Состояние глаз хранится в ChernushkaRenderState для каждой сущности отдельно.
  */
 public class ChernushkaRenderer extends GeoEntityRenderer<ChernushkaEntity, ChernushkaRenderState> {
     
@@ -23,15 +25,58 @@ public class ChernushkaRenderer extends GeoEntityRenderer<ChernushkaEntity, Cher
     private static final float MAX_EYE_OFFSET = 0.5f;
     private static final float EYE_LERP_SPEED = 0.15f;
     
-    // Для плавной анимации глаз
-    private float currentEyeX = 0f;
-    private float currentEyeY = 0f;
-    private float randomLookTimer = 0f;
-    private float randomTargetX = 0f;
-    private float randomTargetY = 0f;
+    // Кэш состояний глаз для каждой сущности (по entity ID)
+    private static final java.util.Map<Integer, EyeState> eyeStates = new java.util.HashMap<>();
+    
+    // Класс для хранения состояния глаз конкретной сущности
+    private static class EyeState {
+        float currentEyeX = 0f;
+        float currentEyeY = 0f;
+        float randomLookTimer = 0f;
+        float randomTargetX = 0f;
+        float randomTargetY = 0f;
+        long lastUsedTime = System.currentTimeMillis();
+    }
+    
+    // Счётчик для периодической очистки
+    private static int cleanupCounter = 0;
+    private static final int CLEANUP_INTERVAL = 1000; // Каждые ~1000 рендеров
+    private static final long STALE_THRESHOLD_MS = 30000; // 30 секунд без использования
     
     public ChernushkaRenderer(EntityRendererFactory.Context context) {
         super(context, new ChernushkaModel());
+    }
+    
+    /**
+     * Получает или создаёт состояние глаз для конкретной сущности
+     */
+    private EyeState getEyeState(int entityId) {
+        // Периодическая очистка старых записей
+        if (++cleanupCounter >= CLEANUP_INTERVAL) {
+            cleanupCounter = 0;
+            cleanupStaleEyeStates();
+        }
+        
+        EyeState state = eyeStates.computeIfAbsent(entityId, id -> new EyeState());
+        state.lastUsedTime = System.currentTimeMillis();
+        return state;
+    }
+    
+    /**
+     * Удаляет состояния глаз для сущностей, которые давно не рендерились
+     */
+    private static void cleanupStaleEyeStates() {
+        long now = System.currentTimeMillis();
+        eyeStates.entrySet().removeIf(entry -> 
+            now - entry.getValue().lastUsedTime > STALE_THRESHOLD_MS
+        );
+    }
+    
+    /**
+     * Очищает состояние глаз для конкретной сущности (вызывать при удалении)
+     */
+    public static void removeEyeState(int entityId) {
+        eyeStates.remove(entityId);
     }
     
     @Override
@@ -40,6 +85,9 @@ public class ChernushkaRenderer extends GeoEntityRenderer<ChernushkaEntity, Cher
         super.addRenderData(animatable, relatedObject, renderState, partialTick);
         
         if (animatable == null || renderState == null) return;
+        
+        // Сохраняем ID сущности для кэширования состояния глаз
+        renderState.entityId = animatable.getId();
         
         // Собираем данные для движения глаз
         PlayerEntity owner = animatable.getOwner();
@@ -82,6 +130,9 @@ public class ChernushkaRenderer extends GeoEntityRenderer<ChernushkaEntity, Cher
         ChernushkaRenderState state = renderPassInfo.renderState();
         if (state == null) return;
         
+        // Получаем состояние глаз для этой конкретной сущности
+        EyeState eyes = getEyeState(state.entityId);
+        
         // Вычисляем целевую позицию глаз
         float targetX = 0f;
         float targetY = 0f;
@@ -104,28 +155,28 @@ public class ChernushkaRenderer extends GeoEntityRenderer<ChernushkaEntity, Cher
             targetY = MathHelper.clamp(-state.lookPitch / 45f, -1f, 1f) * MAX_EYE_OFFSET * 0.5f;
         } else {
             // Случайное оглядывание когда стоим
-            randomLookTimer += 0.05f;
+            eyes.randomLookTimer += 0.05f;
             
-            if (randomLookTimer > 1f) {
-                randomLookTimer = 0f;
+            if (eyes.randomLookTimer > 1f) {
+                eyes.randomLookTimer = 0f;
                 // Новая случайная цель с небольшой вероятностью
                 if (Math.random() < 0.3) {
-                    randomTargetX = (float)(Math.random() * 2 - 1) * MAX_EYE_OFFSET * 0.7f;
-                    randomTargetY = (float)(Math.random() * 2 - 1) * MAX_EYE_OFFSET * 0.3f;
+                    eyes.randomTargetX = (float)(Math.random() * 2 - 1) * MAX_EYE_OFFSET * 0.7f;
+                    eyes.randomTargetY = (float)(Math.random() * 2 - 1) * MAX_EYE_OFFSET * 0.3f;
                 }
             }
             
-            targetX = randomTargetX;
-            targetY = randomTargetY;
+            targetX = eyes.randomTargetX;
+            targetY = eyes.randomTargetY;
         }
         
         // Плавная интерполяция
-        currentEyeX = MathHelper.lerp(EYE_LERP_SPEED, currentEyeX, targetX);
-        currentEyeY = MathHelper.lerp(EYE_LERP_SPEED, currentEyeY, targetY);
+        eyes.currentEyeX = MathHelper.lerp(EYE_LERP_SPEED, eyes.currentEyeX, targetX);
+        eyes.currentEyeY = MathHelper.lerp(EYE_LERP_SPEED, eyes.currentEyeY, targetY);
         
         // Применяем смещение к кости глаз
         snapshots.ifPresent(EYES_BONE, eyeSnapshot -> {
-            eyeSnapshot.setTranslation(currentEyeX, currentEyeY, 0f);
+            eyeSnapshot.setTranslation(eyes.currentEyeX, eyes.currentEyeY, 0f);
         });
     }
     

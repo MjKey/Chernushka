@@ -132,6 +132,8 @@ public class MiningTaskManager {
             if (task != null) {
                 task.assignedCount++;
             }
+            // Включаем анимацию ломки когда задача назначена
+            chernushka.setHelping(true);
         }
         
         return bestTask;
@@ -233,6 +235,7 @@ public class MiningTaskManager {
         helpers.remove(pos);
         miningProgress.remove(pos);
         unreachableBlocks.remove(pos);
+        
         
         // Удаляем всех кто был назначен на этот блок
         assignments.values().removeIf(p -> p.equals(pos));

@@ -1,7 +1,9 @@
 package ru.MjKey.chernushka.entity;
 
+import net.minecraft.block.BlockState;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityType;
+import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.ai.goal.*;
 import net.minecraft.entity.ai.pathing.PathNodeType;
 import net.minecraft.entity.attribute.DefaultAttributeContainer;
@@ -24,6 +26,8 @@ import net.minecraft.util.math.Box;
 import net.minecraft.util.ActionResult;
 import net.minecraft.util.Hand;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.MathHelper;
+import net.minecraft.util.math.Vec3d;
 import net.minecraft.entity.EntityDimensions;
 import net.minecraft.entity.EntityPose;
 import net.minecraft.world.World;
@@ -46,14 +50,37 @@ public class ChernushkaEntity extends PathAwareEntity implements GeoEntity {
     private static final TrackedData<Integer> MERGE_TARGET_ID = DataTracker.registerData(ChernushkaEntity.class, TrackedDataHandlerRegistry.INTEGER);
     private static final TrackedData<Boolean> RUNNING = DataTracker.registerData(ChernushkaEntity.class, TrackedDataHandlerRegistry.BOOLEAN);
     private static final TrackedData<Boolean> SHOWING = DataTracker.registerData(ChernushkaEntity.class, TrackedDataHandlerRegistry.BOOLEAN);
+    private static final TrackedData<Boolean> MINING = DataTracker.registerData(ChernushkaEntity.class, TrackedDataHandlerRegistry.BOOLEAN);
+    
+    // Размножение
+    private static final TrackedData<Integer> BREEDING_TARGET_ID = DataTracker.registerData(ChernushkaEntity.class, TrackedDataHandlerRegistry.INTEGER);
+    private static final TrackedData<Integer> LOVE_TICKS = DataTracker.registerData(ChernushkaEntity.class, TrackedDataHandlerRegistry.INTEGER);
 
     
     // Уровни слияния: 0=1x, 1=1.5x, 2=2x, 3=2.5x, 4=3x, 5=5x (максимум 5 чернушек в одной)
     public static final int MAX_MERGE_LEVEL = 5;
     public static final float[] SCALE_BY_LEVEL = {1.0f, 1.5f, 2.0f, 2.5f, 3.0f, 5.0f};
     
-    // Статический кэш для системы слияния: playerId -> первая выбранная чернушка
-    private static final java.util.Map<UUID, Integer> pendingMergeSelections = new java.util.HashMap<>();
+    // Статический кэш для системы слияния: playerId -> UUID первой выбранной чернушки
+    private static final java.util.Map<UUID, UUID> pendingMergeSelections = new java.util.HashMap<>();
+    
+    // Статический кэш для размножения: playerId -> UUID первой выбранной чернушки
+    private static final java.util.Map<UUID, UUID> pendingBreedingSelections = new java.util.HashMap<>();
+    
+    // Кулдаун размножения
+    private int breedingCooldown = 0;
+    private static final int BREEDING_COOLDOWN_TICKS = 5 * 60 * 20; // 5 минут
+    
+    // Таймер бурения блоков при езде
+    private int drillCooldown = 0;
+    private static final int DRILL_INTERVAL = 2; // Каждые 2 тика ломаем блок (быстрее)
+    
+    // Прогресс ломания твёрдого блока
+    @Nullable
+    private BlockPos hardBlockPos = null;
+    private int hardBlockProgress = 0;
+    private static final int BEDROCK_BREAK_TICKS = 3 * 60 * 20; // 3 минуты для бедрока
+    private static final int HARD_BLOCK_BREAK_TICKS = 10 * 20;  // 10 секунд для обсидиана и т.п.
     
     protected static final RawAnimation WALK_ANIM = RawAnimation.begin().thenLoop("walk");
     protected static final RawAnimation STOP_WALK_ANIM = RawAnimation.begin().thenPlay("stop_walk");
@@ -162,6 +189,38 @@ public class ChernushkaEntity extends PathAwareEntity implements GeoEntity {
             // Обработка процесса слияния
             processMergeMovement();
             
+            // Обработка процесса размножения
+            processBreedingMovement();
+            
+            // Кулдаун размножения
+            if (this.breedingCooldown > 0) {
+                this.breedingCooldown--;
+            }
+            
+            // Love ticks (сердечки)
+            int loveTicks = getLoveTicks();
+            if (loveTicks > 0) {
+                setLoveTicks(loveTicks - 1);
+                // Спавним сердечки
+                if (loveTicks % 10 == 0 && this.getEntityWorld() instanceof ServerWorld serverWorld) {
+                    serverWorld.spawnParticles(
+                        ParticleTypes.HEART,
+                        this.getX(), this.getY() + this.getHeight(), this.getZ(),
+                        1, 0.3, 0.3, 0.3, 0
+                    );
+                }
+            }
+            
+            // Бурение блоков при езде (живой бур!)
+            if (this.hasPassengers() && getMergeLevel() >= MAX_MERGE_LEVEL) {
+                processDrilling();
+            } else {
+                // Сбрасываем анимацию бурения если нет пассажира
+                if (isHelping() && this.breakingBlockPos == null) {
+                    setHelping(false);
+                }
+            }
+            
             // Обработка анимации show
             if (this.showingTicks > 0) {
                 this.showingTicks--;
@@ -190,22 +249,18 @@ public class ChernushkaEntity extends PathAwareEntity implements GeoEntity {
     
     /**
      * Загружает owner UUID и merge level из attachment и синхронизирует в DataTracker
+     * Вызывается при первом tick после загрузки мира
      */
     private void loadOwnerFromAttachment() {
-        // Загружаем owner
+        // Загружаем owner - ВСЕГДА перезаписываем из attachment если есть
         String attached = this.getAttachedOrElse(ModAttachments.OWNER_UUID, "");
         if (!attached.isEmpty()) {
-            String current = this.dataTracker.get(OWNER_UUID_STRING);
-            if (current == null || current.isEmpty()) {
-                this.dataTracker.set(OWNER_UUID_STRING, attached);
-            }
+            this.dataTracker.set(OWNER_UUID_STRING, attached);
         }
         
-        // Загружаем merge level
+        // Загружаем merge level - ВСЕГДА перезаписываем из attachment
         int savedLevel = this.getAttachedOrElse(ModAttachments.MERGE_LEVEL, 0);
-        if (savedLevel > 0) {
-            this.dataTracker.set(MERGE_LEVEL, savedLevel);
-        }
+        this.dataTracker.set(MERGE_LEVEL, savedLevel);
     }
     
     @Override
@@ -258,6 +313,9 @@ public class ChernushkaEntity extends PathAwareEntity implements GeoEntity {
         builder.add(MERGE_TARGET_ID, -1);
         builder.add(RUNNING, false);
         builder.add(SHOWING, false);
+        builder.add(BREEDING_TARGET_ID, -1);
+        builder.add(LOVE_TICKS, 0);
+        builder.add(MINING, false);
     }
     
 
@@ -317,6 +375,22 @@ public class ChernushkaEntity extends PathAwareEntity implements GeoEntity {
                 }
                 return ActionResult.SUCCESS;
             }
+            
+            // Размножение - аметистом по двум чернушкам
+            if (isTamed() && stack.isOf(Items.AMETHYST_SHARD) && getMergeLevel() == 0) {
+                if (handleBreedingClick(player, stack)) {
+                    return ActionResult.SUCCESS;
+                }
+            }
+            
+            // Верховая езда - на гигантской чернушке (level 5)
+            if (isTamed() && stack.isEmpty() && getMergeLevel() >= MAX_MERGE_LEVEL) {
+                UUID ownerUuid = getOwnerUuid();
+                if (ownerUuid != null && ownerUuid.equals(player.getUuid())) {
+                    player.startRiding(this);
+                    return ActionResult.SUCCESS;
+                }
+            }
         }
         return super.interactMob(player, hand);
     }
@@ -343,11 +417,11 @@ public class ChernushkaEntity extends PathAwareEntity implements GeoEntity {
      */
     private boolean handleMergeClick(PlayerEntity player, ItemStack stack) {
         UUID playerId = player.getUuid();
-        Integer firstChernushkaId = pendingMergeSelections.get(playerId);
+        UUID firstChernushkaUuid = pendingMergeSelections.get(playerId);
         
-        if (firstChernushkaId == null) {
-            // Первый клик - запоминаем эту чернушку
-            pendingMergeSelections.put(playerId, this.getId());
+        if (firstChernushkaUuid == null) {
+            // Первый клик - запоминаем эту чернушку по UUID
+            pendingMergeSelections.put(playerId, this.getUuid());
             // Показываем что чернушка выбрана (частицы)
             if (this.getEntityWorld() instanceof ServerWorld serverWorld) {
                 serverWorld.spawnParticles(
@@ -360,30 +434,41 @@ public class ChernushkaEntity extends PathAwareEntity implements GeoEntity {
         }
         
         // Второй клик
-        if (firstChernushkaId == this.getId()) {
+        if (firstChernushkaUuid.equals(this.getUuid())) {
             // Кликнули по той же чернушке - отменяем выбор
             pendingMergeSelections.remove(playerId);
             return true;
         }
         
-        // Ищем первую чернушку
-        Entity firstEntity = this.getEntityWorld().getEntityById(firstChernushkaId);
-        if (!(firstEntity instanceof ChernushkaEntity firstChernushka) || !firstChernushka.isAlive()) {
+        // Ищем первую чернушку по UUID
+        ChernushkaEntity firstChernushka = findChernushkaByUuid(firstChernushkaUuid);
+        if (firstChernushka == null || !firstChernushka.isAlive()) {
             // Первая чернушка не найдена - начинаем заново с этой
-            pendingMergeSelections.put(playerId, this.getId());
+            pendingMergeSelections.put(playerId, this.getUuid());
+            if (this.getEntityWorld() instanceof ServerWorld serverWorld) {
+                serverWorld.spawnParticles(
+                    ParticleTypes.HAPPY_VILLAGER,
+                    this.getX(), this.getY() + 1, this.getZ(),
+                    5, 0.3, 0.3, 0.3, 0
+                );
+            }
             return true;
         }
         
-        // Проверяем что обе принадлежат этому игроку
-        if (!playerId.equals(firstChernushka.getOwnerUuid()) || !playerId.equals(this.getOwnerUuid())) {
+        // Проверяем что обе принадлежат этому игроку (или обе дикие)
+        UUID firstOwner = firstChernushka.getOwnerUuid();
+        UUID secondOwner = this.getOwnerUuid();
+        boolean bothTamed = firstOwner != null && secondOwner != null && firstOwner.equals(playerId) && secondOwner.equals(playerId);
+        boolean bothWild = firstOwner == null && secondOwner == null;
+        
+        if (!bothTamed && !bothWild) {
             pendingMergeSelections.remove(playerId);
             return false;
         }
         
-        // Проверяем лимит слияния (максимум 5 чернушек = уровень 4)
+        // Проверяем лимит слияния
         int totalLevel = firstChernushka.getMergeLevel() + this.getMergeLevel() + 1;
         if (totalLevel > MAX_MERGE_LEVEL) {
-            // Слишком много чернушек - нельзя слить
             pendingMergeSelections.remove(playerId);
             return false;
         }
@@ -392,15 +477,28 @@ public class ChernushkaEntity extends PathAwareEntity implements GeoEntity {
         pendingMergeSelections.remove(playerId);
         
         // Запускаем процесс слияния - чернушки идут друг к другу
-        startMergeProcess(firstChernushka, this, player, stack);
+        startMergeWalking(firstChernushka, this, player, stack);
         return true;
+    }
+    
+    /**
+     * Ищет чернушку по UUID в мире
+     */
+    @Nullable
+    private ChernushkaEntity findChernushkaByUuid(UUID uuid) {
+        if (!(this.getEntityWorld() instanceof ServerWorld serverWorld)) return null;
+        Entity entity = serverWorld.getEntity(uuid);
+        if (entity instanceof ChernushkaEntity chernushka) {
+            return chernushka;
+        }
+        return null;
     }
     
     /**
      * Запускает процесс слияния - чернушки идут друг к другу
      */
-    private void startMergeProcess(ChernushkaEntity first, ChernushkaEntity second, PlayerEntity player, ItemStack stack) {
-        // Устанавливаем цели движения друг к другу
+    private void startMergeWalking(ChernushkaEntity first, ChernushkaEntity second, PlayerEntity player, ItemStack stack) {
+        // Устанавливаем цели движения друг к другу (по UUID)
         first.setMergeTargetId(second.getId());
         second.setMergeTargetId(first.getId());
         
@@ -408,6 +506,86 @@ public class ChernushkaEntity extends PathAwareEntity implements GeoEntity {
         if (!player.isCreative()) {
             stack.decrement(1);
         }
+        
+        // Показываем частицы на обеих
+        if (this.getEntityWorld() instanceof ServerWorld serverWorld) {
+            serverWorld.spawnParticles(ParticleTypes.HAPPY_VILLAGER, first.getX(), first.getY() + 1, first.getZ(), 3, 0.3, 0.3, 0.3, 0);
+            serverWorld.spawnParticles(ParticleTypes.HAPPY_VILLAGER, second.getX(), second.getY() + 1, second.getZ(), 3, 0.3, 0.3, 0.3, 0);
+        }
+    }
+    
+    /**
+     * Обрабатывает движение к цели слияния (вызывается в tick)
+     */
+    private void processMergeMovement() {
+        int targetId = getMergeTargetId();
+        if (targetId < 0) return;
+        
+        Entity targetEntity = this.getEntityWorld().getEntityById(targetId);
+        if (!(targetEntity instanceof ChernushkaEntity target) || !target.isAlive()) {
+            setMergeTargetId(-1);
+            return;
+        }
+        
+        double distSq = this.squaredDistanceTo(target);
+        
+        // Если достаточно близко - сливаемся
+        if (distSq < 4.0) {
+            // Только одна чернушка выполняет слияние (с меньшим ID)
+            if (this.getId() < target.getId()) {
+                performMerge(target);
+            }
+            return;
+        }
+        
+        // Идём к цели
+        this.getNavigation().startMovingTo(target.getX(), target.getY(), target.getZ(), 1.2);
+    }
+    
+    /**
+     * Выполняет слияние двух чернушек
+     */
+    private void performMerge(ChernushkaEntity other) {
+        // Сбрасываем цели
+        setMergeTargetId(-1);
+        other.setMergeTargetId(-1);
+        
+        // Вычисляем новый уровень
+        int newLevel = Math.min(MAX_MERGE_LEVEL, this.getMergeLevel() + other.getMergeLevel() + 1);
+        
+        // Устанавливаем новый уровень
+        setMergeLevel(newLevel);
+        
+        // Триггеры достижений
+        PlayerEntity owner = getOwner();
+        if (owner instanceof net.minecraft.server.network.ServerPlayerEntity serverPlayer) {
+            if (newLevel >= 2) {
+                ru.MjKey.chernushka.advancement.ModCriteria.BIG_CHERNUSHKA.trigger(serverPlayer);
+            }
+            if (newLevel >= MAX_MERGE_LEVEL) {
+                ru.MjKey.chernushka.advancement.ModCriteria.GIANT_CHERNUSHKA.trigger(serverPlayer);
+            }
+        }
+        
+        // Спавним частицы
+        if (this.getEntityWorld() instanceof ServerWorld serverWorld) {
+            double x = (this.getX() + other.getX()) / 2;
+            double y = (this.getY() + other.getY()) / 2 + 0.5;
+            double z = (this.getZ() + other.getZ()) / 2;
+            
+            for (int i = 0; i < 20; i++) {
+                serverWorld.spawnParticles(
+                    ParticleTypes.SMOKE,
+                    x + random.nextGaussian() * 0.5,
+                    y + random.nextGaussian() * 0.5,
+                    z + random.nextGaussian() * 0.5,
+                    1, 0, 0, 0, 0.05
+                );
+            }
+        }
+        
+        // Удаляем другую чернушку
+        other.discard();
     }
     
     /**
@@ -466,55 +644,6 @@ public class ChernushkaEntity extends PathAwareEntity implements GeoEntity {
         this.discard();
     }
     
-    /**
-     * Обрабатывает движение к цели слияния
-     */
-    private void processMergeMovement() {
-        int targetId = getMergeTargetId();
-        if (targetId < 0) return;
-        
-        Entity targetEntity = this.getEntityWorld().getEntityById(targetId);
-        if (!(targetEntity instanceof ChernushkaEntity target) || !target.isAlive()) {
-            // Цель не найдена - отменяем
-            setMergeTargetId(-1);
-            return;
-        }
-        
-        double distSq = this.squaredDistanceTo(target);
-        
-        // Если достаточно близко - сливаемся
-        if (distSq < 1.5) {
-            // Только одна чернушка выполняет слияние (с меньшим ID)
-            if (this.getId() < target.getId()) {
-                performMerge(target);
-            }
-            return;
-        }
-        
-        // Идём к цели
-        this.getNavigation().startMovingTo(target, 1.2);
-    }
-    
-    /**
-     * Выполняет слияние двух чернушек
-     */
-    private void performMerge(ChernushkaEntity other) {
-        // Проверяем лимит ещё раз
-        int newLevel = this.getMergeLevel() + other.getMergeLevel() + 1;
-        if (newLevel > MAX_MERGE_LEVEL) {
-            setMergeTargetId(-1);
-            other.setMergeTargetId(-1);
-            return;
-        }
-        
-        // Сбрасываем цели
-        setMergeTargetId(-1);
-        other.setMergeTargetId(-1);
-        
-        // Сливаем в эту чернушку
-        mergeWith(other);
-    }
-    
     public int getMergeTargetId() {
         return this.dataTracker.get(MERGE_TARGET_ID);
     }
@@ -523,48 +652,421 @@ public class ChernushkaEntity extends PathAwareEntity implements GeoEntity {
         this.dataTracker.set(MERGE_TARGET_ID, id);
     }
     
+    // ===== Система размножения =====
+    
     /**
-     * Сливает другую чернушку в эту
+     * Обрабатывает клик аметистом для размножения (система двух кликов)
      */
-    private void mergeWith(ChernushkaEntity other) {
-        // Вычисляем новый уровень (сумма уровней + 1, но не больше MAX)
-        int newLevel = Math.min(MAX_MERGE_LEVEL, this.getMergeLevel() + other.getMergeLevel() + 1);
-        
-        // Устанавливаем новый уровень
-        setMergeLevel(newLevel);
-        
-        // Триггеры достижений
-        PlayerEntity owner = getOwner();
-        if (owner instanceof net.minecraft.server.network.ServerPlayerEntity serverPlayer) {
-            // Большая чернушка (уровень >= 2)
-            if (newLevel >= 2) {
-                ru.MjKey.chernushka.advancement.ModCriteria.BIG_CHERNUSHKA.trigger(serverPlayer);
-            }
-            // Гигант (максимальный уровень)
-            if (newLevel >= MAX_MERGE_LEVEL) {
-                ru.MjKey.chernushka.advancement.ModCriteria.GIANT_CHERNUSHKA.trigger(serverPlayer);
-            }
+    private boolean handleBreedingClick(PlayerEntity player, ItemStack stack) {
+        // Проверяем кулдаун
+        if (this.breedingCooldown > 0) {
+            return false;
         }
         
-        // Спавним частицы
+        UUID playerId = player.getUuid();
+        UUID firstChernushkaUuid = pendingBreedingSelections.get(playerId);
+        
+        if (firstChernushkaUuid == null) {
+            // Первый клик - запоминаем эту чернушку и активируем режим любви
+            pendingBreedingSelections.put(playerId, this.getUuid());
+            setLoveTicks(60); // 3 секунды сердечек
+            return true;
+        }
+        
+        // Второй клик
+        if (firstChernushkaUuid.equals(this.getUuid())) {
+            // Кликнули по той же чернушке - отменяем выбор
+            pendingBreedingSelections.remove(playerId);
+            setLoveTicks(0);
+            return true;
+        }
+        
+        // Ищем первую чернушку по UUID
+        ChernushkaEntity firstChernushka = findChernushkaByUuid(firstChernushkaUuid);
+        if (firstChernushka == null || !firstChernushka.isAlive()) {
+            // Первая чернушка не найдена - начинаем заново с этой
+            pendingBreedingSelections.put(playerId, this.getUuid());
+            setLoveTicks(60);
+            return true;
+        }
+        
+        // Проверяем что обе принадлежат этому игроку
+        UUID firstOwner = firstChernushka.getOwnerUuid();
+        UUID secondOwner = this.getOwnerUuid();
+        if (firstOwner == null || secondOwner == null || !firstOwner.equals(playerId) || !secondOwner.equals(playerId)) {
+            pendingBreedingSelections.remove(playerId);
+            return false;
+        }
+        
+        // Проверяем что обе обычные (не слитые)
+        if (firstChernushka.getMergeLevel() > 0 || this.getMergeLevel() > 0) {
+            pendingBreedingSelections.remove(playerId);
+            return false;
+        }
+        
+        // Проверяем кулдаун у первой
+        if (firstChernushka.breedingCooldown > 0) {
+            pendingBreedingSelections.remove(playerId);
+            return false;
+        }
+        
+        // Очищаем выбор
+        pendingBreedingSelections.remove(playerId);
+        
+        // Запускаем процесс размножения - чернушки идут друг к другу
+        startBreedingWalking(firstChernushka, this, player, stack);
+        return true;
+    }
+    
+    /**
+     * Запускает процесс размножения - чернушки идут друг к другу
+     */
+    private void startBreedingWalking(ChernushkaEntity first, ChernushkaEntity second, PlayerEntity player, ItemStack stack) {
+        // Устанавливаем цели движения друг к другу
+        first.setBreedingTargetId(second.getId());
+        second.setBreedingTargetId(first.getId());
+        
+        // Активируем сердечки у обеих
+        first.setLoveTicks(200);
+        second.setLoveTicks(200);
+        
+        // Тратим предмет
+        if (!player.isCreative()) {
+            stack.decrement(1);
+        }
+    }
+    
+    /**
+     * Обрабатывает движение к цели размножения (вызывается в tick)
+     */
+    private void processBreedingMovement() {
+        int targetId = getBreedingTargetId();
+        if (targetId < 0) return;
+        
+        Entity targetEntity = this.getEntityWorld().getEntityById(targetId);
+        if (!(targetEntity instanceof ChernushkaEntity target) || !target.isAlive()) {
+            setBreedingTargetId(-1);
+            setLoveTicks(0);
+            return;
+        }
+        
+        double distSq = this.squaredDistanceTo(target);
+        
+        // Если достаточно близко - размножаемся
+        if (distSq < 4.0) {
+            // Только одна чернушка выполняет размножение (с меньшим ID)
+            if (this.getId() < target.getId()) {
+                performBreeding(target);
+            }
+            return;
+        }
+        
+        // Идём к цели
+        this.getNavigation().startMovingTo(target.getX(), target.getY(), target.getZ(), 1.0);
+        
+        // Продлеваем сердечки пока идём
+        if (getLoveTicks() < 20) {
+            setLoveTicks(100);
+        }
+    }
+    
+    /**
+     * Выполняет размножение двух чернушек
+     */
+    private void performBreeding(ChernushkaEntity other) {
+        // Сбрасываем цели
+        setBreedingTargetId(-1);
+        other.setBreedingTargetId(-1);
+        setLoveTicks(0);
+        other.setLoveTicks(0);
+        
+        // Устанавливаем кулдаун
+        this.breedingCooldown = BREEDING_COOLDOWN_TICKS;
+        other.breedingCooldown = BREEDING_COOLDOWN_TICKS;
+        
+        // Спавним малыша!
         if (this.getEntityWorld() instanceof ServerWorld serverWorld) {
-            double x = (this.getX() + other.getX()) / 2;
-            double y = (this.getY() + other.getY()) / 2 + 0.5;
-            double z = (this.getZ() + other.getZ()) / 2;
+            ChernushkaEntity baby = ModEntities.CHERNUSHKA.create(serverWorld, SpawnReason.BREEDING);
+            if (baby != null) {
+                double x = (this.getX() + other.getX()) / 2;
+                double y = Math.max(this.getY(), other.getY());
+                double z = (this.getZ() + other.getZ()) / 2;
+                
+                baby.refreshPositionAndAngles(x, y, z, random.nextFloat() * 360, 0);
+                
+                // Малыш принадлежит тому же владельцу
+                UUID ownerUuid = this.getOwnerUuid();
+                if (ownerUuid != null) {
+                    baby.setOwnerUuid(ownerUuid);
+                }
+                
+                serverWorld.spawnEntity(baby);
+                
+                // Много сердечек!
+                for (int i = 0; i < 15; i++) {
+                    serverWorld.spawnParticles(
+                        ParticleTypes.HEART,
+                        x + random.nextGaussian() * 0.5,
+                        y + 0.5 + random.nextDouble() * 0.5,
+                        z + random.nextGaussian() * 0.5,
+                        1, 0, 0, 0, 0
+                    );
+                }
+            }
+        }
+    }
+    
+    public int getBreedingTargetId() {
+        return this.dataTracker.get(BREEDING_TARGET_ID);
+    }
+    
+    public void setBreedingTargetId(int id) {
+        this.dataTracker.set(BREEDING_TARGET_ID, id);
+    }
+    
+    public int getLoveTicks() {
+        return this.dataTracker.get(LOVE_TICKS);
+    }
+    
+    public void setLoveTicks(int ticks) {
+        this.dataTracker.set(LOVE_TICKS, ticks);
+    }
+    
+    public boolean isInLove() {
+        return getLoveTicks() > 0;
+    }
+    
+    // ===== Верховая езда (живой бур!) =====
+    
+    /**
+     * Проверяет может ли чернушка быть управляемой наездником
+     */
+    public boolean canBeControlledByRider() {
+        return getMergeLevel() >= MAX_MERGE_LEVEL && this.getControllingPassenger() instanceof PlayerEntity;
+    }
+    
+    @Nullable
+    @Override
+    public LivingEntity getControllingPassenger() {
+        Entity passenger = this.getFirstPassenger();
+        if (passenger instanceof PlayerEntity player) {
+            UUID ownerUuid = getOwnerUuid();
+            if (ownerUuid != null && ownerUuid.equals(player.getUuid())) {
+                return player;
+            }
+        }
+        return null;
+    }
+    
+    @Override
+    protected Vec3d getControlledMovementInput(PlayerEntity controllingPlayer, Vec3d movementInput) {
+        // Управление как на лошади
+        float forward = controllingPlayer.forwardSpeed;
+        float strafe = controllingPlayer.sidewaysSpeed * 0.5f;
+        
+        if (forward <= 0.0f) {
+            forward *= 0.25f; // Медленнее назад
+        }
+        
+        return new Vec3d(strafe, 0.0, forward);
+    }
+    
+    @Override
+    protected float getSaddledSpeed(PlayerEntity controllingPlayer) {
+        // Скорость гигантской чернушки
+        return (float) this.getAttributeValue(EntityAttributes.MOVEMENT_SPEED) * 0.8f;
+    }
+    
+    @Override
+    protected void tickControlled(PlayerEntity controllingPlayer, Vec3d movementInput) {
+        super.tickControlled(controllingPlayer, movementInput);
+        
+        // Поворачиваем чернушку в направлении взгляда игрока
+        this.setRotation(controllingPlayer.getYaw(), controllingPlayer.getPitch() * 0.5f);
+        this.bodyYaw = this.getYaw();
+        this.headYaw = this.bodyYaw;
+        
+        // Прыжок когда игрок прыгает
+        if (controllingPlayer.isJumping() && this.isOnGround()) {
+            this.jump();
+        }
+    }
+    
+    @Override
+    protected Vec3d getPassengerAttachmentPos(Entity passenger, EntityDimensions dimensions, float scaleFactor) {
+        // Лежачий игрок на гигантской чернушке - ниже и немного вперёд
+        // if (passenger instanceof PlayerEntity && getMergeLevel() >= MAX_MERGE_LEVEL) {
+        //     return new Vec3d(0.0, dimensions.height() * 0.92, 0.0);
+        // } // нет в этом обходимости!
+        return new Vec3d(0.0, dimensions.height() * 1.05, 0.0);
+    }
+    
+    /**
+     * Бурение блоков при езде - живой бур!
+     * Работает только если игрок держит палку для чернушек в любой руке
+     * Ломает по одному блоку за раз, туннель 5x5, глубина 3 блока
+     * Порядок: снизу вверх, потом следующий ряд вперёд
+     */
+    private void processDrilling() {
+        if (!(this.getEntityWorld() instanceof ServerWorld serverWorld)) return;
+        
+        Entity passenger = this.getFirstPassenger();
+        if (!(passenger instanceof PlayerEntity player)) return;
+        
+        // Проверяем что игрок держит палку для чернушек в любой руке
+        boolean hasStick = player.getMainHandStack().getItem() instanceof ru.MjKey.chernushka.item.ChernushkaStickItem
+                        || player.getOffHandStack().getItem() instanceof ru.MjKey.chernushka.item.ChernushkaStickItem;
+        
+        if (!hasStick) {
+            setHelping(false);
+            return;
+        }
+        
+        drillCooldown--;
+        if (drillCooldown > 0) return;
+        drillCooldown = DRILL_INTERVAL;
+        
+        // Направление движения (куда смотрит чернушка)
+        float yaw = this.getYaw();
+        double dirX = -MathHelper.sin(yaw * ((float) Math.PI / 180F));
+        double dirZ = MathHelper.cos(yaw * ((float) Math.PI / 180F));
+        
+        // Базовая позиция - край хитбокса
+        double baseReach = this.getWidth() / 2.0;
+        int baseY = MathHelper.floor(this.getY());
+        
+        // Размер туннеля: 5 в ширину, 5 в высоту, 3 в глубину
+        int tunnelWidth = 5;   // -2, -1, 0, +1
+        int tunnelHeight = 5;  // 0, 1, 2, 3, 4
+        int tunnelDepth = 3;   // 1, 2, 3 блока вперёд от края
+        
+        // Порядок: сначала ближний ряд снизу вверх, потом следующий ряд и т.д.
+        for (int depth = 1; depth <= tunnelDepth; depth++) {
+            double reach = baseReach + depth;
+            double frontX = this.getX() + dirX * reach;
+            double frontZ = this.getZ() + dirZ * reach;
             
-            for (int i = 0; i < 20; i++) {
-                serverWorld.spawnParticles(
-                    ParticleTypes.SMOKE,
-                    x + random.nextGaussian() * 0.5,
-                    y + random.nextGaussian() * 0.5,
-                    z + random.nextGaussian() * 0.5,
-                    1, 0, 0, 0, 0.05
-                );
+            // Снизу вверх
+            for (int dy = 0; dy < tunnelHeight; dy++) {
+                // По ширине
+                for (int dxIdx = 0; dxIdx < tunnelWidth; dxIdx++) {
+                    int dx = dxIdx - 2; // -2, -1, 0, +1
+                    
+                    // Смещение по бокам перпендикулярно направлению
+                    double sideOffsetX = -dirZ * dx;
+                    double sideOffsetZ = dirX * dx;
+                    
+                    BlockPos pos = new BlockPos(
+                        MathHelper.floor(frontX + sideOffsetX),
+                        baseY + dy,
+                        MathHelper.floor(frontZ + sideOffsetZ)
+                    );
+                    
+                    if (tryBreakBlock(serverWorld, pos, player)) {
+                        setHelping(true);
+                        return; // Ломаем только один блок за раз
+                    }
+                }
             }
         }
         
-        // Удаляем другую чернушку
-        other.discard();
+        // Нечего ломать - выключаем анимацию
+        setHelping(false);
+    }
+    
+    /**
+     * Пытается сломать блок
+     * @return true если блок был сломан или идёт процесс ломания
+     */
+    private boolean tryBreakBlock(ServerWorld world, BlockPos pos, PlayerEntity player) {
+        BlockState state = world.getBlockState(pos);
+        
+        // Пропускаем воздух
+        if (state.isAir()) return false;
+        
+        float hardness = state.getHardness(world, pos);
+        
+        // Бедрок (hardness < 0) - ломаем за 3 минуты
+        if (hardness < 0) {
+            return processHardBlock(world, pos, player, BEDROCK_BREAK_TICKS);
+        }
+        
+        // Очень твёрдые блоки (обсидиан = 50) - ломаем за 10 секунд
+        if (hardness >= 50) {
+            return processHardBlock(world, pos, player, HARD_BLOCK_BREAK_TICKS);
+        }
+        
+        // Обычные блоки - ломаем сразу
+        // Сбрасываем прогресс твёрдого блока если переключились
+        if (hardBlockPos != null && !hardBlockPos.equals(pos)) {
+            resetHardBlockProgress(world);
+        }
+        
+        world.breakBlock(pos, true, player);
+        
+        // Частицы
+        world.spawnParticles(
+            ParticleTypes.SMOKE,
+            pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5,
+            3, 0.2, 0.2, 0.2, 0.01
+        );
+        
+        return true;
+    }
+    
+    /**
+     * Обрабатывает ломание твёрдого блока с прогрессом
+     */
+    private boolean processHardBlock(ServerWorld world, BlockPos pos, PlayerEntity player, int totalTicks) {
+        // Если это новый блок - начинаем заново
+        if (hardBlockPos == null || !hardBlockPos.equals(pos)) {
+            resetHardBlockProgress(world);
+            hardBlockPos = pos;
+            hardBlockProgress = 0;
+        }
+        
+        hardBlockProgress++;
+        
+        // Показываем прогресс разрушения (0-9)
+        int stage = (int) ((hardBlockProgress / (float) totalTicks) * 10);
+        stage = Math.min(stage, 9);
+        world.setBlockBreakingInfo(this.getId(), pos, stage);
+        
+        // Частицы каждые 10 тиков
+        if (hardBlockProgress % 10 == 0) {
+            world.spawnParticles(
+                ParticleTypes.SMOKE,
+                pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5,
+                2, 0.3, 0.3, 0.3, 0.01
+            );
+        }
+        
+        // Блок сломан!
+        if (hardBlockProgress >= totalTicks) {
+            world.breakBlock(pos, true, player);
+            resetHardBlockProgress(world);
+            
+            // Больше частиц при ломании твёрдого блока
+            world.spawnParticles(
+                ParticleTypes.EXPLOSION,
+                pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5,
+                1, 0, 0, 0, 0
+            );
+            return true;
+        }
+        
+        return true; // Блок ещё ломается
+    }
+    
+    /**
+     * Сбрасывает прогресс ломания твёрдого блока
+     */
+    private void resetHardBlockProgress(ServerWorld world) {
+        if (hardBlockPos != null) {
+            world.setBlockBreakingInfo(this.getId(), hardBlockPos, -1);
+            hardBlockPos = null;
+            hardBlockProgress = 0;
+        }
     }
     
     @Override
@@ -614,7 +1116,7 @@ public class ChernushkaEntity extends PathAwareEntity implements GeoEntity {
             if (this.isConfused()) {
                 return state.setAndContinue(OGLYADKA_ANIM);
             }
-            if (this.isHelping()) {
+            if (this.isMining() || this.isHelping()) {
                 return state.setAndContinue(LOMKA_ANIM);
             }
             
@@ -647,8 +1149,8 @@ public class ChernushkaEntity extends PathAwareEntity implements GeoEntity {
     public UUID getOwnerUuid() {
         // Сначала проверяем DataTracker (для синхронизации клиент-сервер)
         String uuidStr = this.dataTracker.get(OWNER_UUID_STRING);
-        if (uuidStr == null || uuidStr.isEmpty()) {
-            // Пробуем загрузить из attachment (для персистентности)
+        if ((uuidStr == null || uuidStr.isEmpty()) && !this.getEntityWorld().isClient()) {
+            // Пробуем загрузить из attachment (для персистентности) - только на сервере
             String attached = this.getAttachedOrElse(ModAttachments.OWNER_UUID, "");
             if (!attached.isEmpty()) {
                 // Синхронизируем в DataTracker
@@ -692,8 +1194,9 @@ public class ChernushkaEntity extends PathAwareEntity implements GeoEntity {
         }
         
         if (this.getEntityWorld() instanceof ServerWorld serverWorld) {
-            Entity entity = serverWorld.getEntity(uuid);
-            if (entity instanceof PlayerEntity player) {
+            // Используем getPlayerByUuid для поиска игрока, а не getEntity
+            PlayerEntity player = serverWorld.getPlayerByUuid(uuid);
+            if (player != null) {
                 ownerCache = player;
                 return player;
             }
@@ -747,6 +1250,14 @@ public class ChernushkaEntity extends PathAwareEntity implements GeoEntity {
     
     public void setHelping(boolean helping) {
         this.dataTracker.set(HELPING, helping);
+    }
+    
+    public boolean isMining() {
+        return this.dataTracker.get(MINING);
+    }
+    
+    public void setMining(boolean mining) {
+        this.dataTracker.set(MINING, mining);
     }
     
     public boolean isConfused() {

@@ -12,9 +12,10 @@ public class ChernushkaRenderState extends LivingEntityRenderState implements Ge
     
     private final Map<DataTicket<?>, Object> dataMap = new Reference2ObjectOpenHashMap<>();
     
-    // Данные для движения глаз
-    public float eyeOffsetX = 0f;
-    public float eyeOffsetY = 0f;
+    // ID сущности для кэширования состояния глаз
+    public int entityId = 0;
+    
+    // Данные для движения глаз (входные)
     public boolean isLookingAtOwner = false;
     public boolean isMoving = false;
     public float lookYaw = 0f;

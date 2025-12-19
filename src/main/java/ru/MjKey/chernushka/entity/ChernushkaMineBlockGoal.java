@@ -108,6 +108,9 @@ public class ChernushkaMineBlockGoal extends Goal {
         this.stuckTicks = 0;
         this.lastPosition = this.chernushka.getBlockPos();
         
+        // Включаем анимацию ломки сразу при получении задачи
+        this.chernushka.setMining(true);
+        
         calculateMiningTime();
     }
     
@@ -135,7 +138,7 @@ public class ChernushkaMineBlockGoal extends Goal {
             serverWorld.setBlockBreakingInfo(this.chernushka.getId(), this.targetBlock, -1);
         }
         
-        this.chernushka.setHelping(false);
+        this.chernushka.setMining(false);
         
         // Освобождаем чернушку от задачи
         MiningTaskManager.releaseChernushka(this.chernushka.getId());
@@ -191,7 +194,6 @@ public class ChernushkaMineBlockGoal extends Goal {
         double reachDist = getReachDistance();
         if (distSq > reachDist * reachDist) {
             moveToBlock();
-            this.chernushka.setHelping(false);
             return;
         }
         
@@ -201,10 +203,12 @@ public class ChernushkaMineBlockGoal extends Goal {
         
         // Можем достать - ломаем!
         this.chernushka.getNavigation().stop();
-        this.chernushka.setHelping(true);
         
         // Поворачиваем тело к блоку
         rotateTowardsBlock();
+
+        
+        this.chernushka.setMining(true);
         
         // Добавляем прогресс с учётом множителя скорости
         float speedMultiplier = MiningTaskManager.getSpeedMultiplier(this.targetBlock);
@@ -253,6 +257,9 @@ public class ChernushkaMineBlockGoal extends Goal {
     }
     
     private void moveToBlock() {
+        // Показываем анимацию ломки даже когда идём к блоку
+        this.chernushka.setMining(true);
+        
         if (++this.pathUpdateTicks >= PATH_UPDATE_INTERVAL) {
             this.pathUpdateTicks = 0;
             

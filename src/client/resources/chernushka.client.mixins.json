@@ -4,6 +4,9 @@
   "package": "ru.MjKey.chernushka.mixin.client",
   "compatibilityLevel": "JAVA_21",
   "client": [
+    "PlayerEntityRendererMixin",
+    "PlayerEntityModelMixin",
+    "CameraMixin"
   ],
   "injectors": {
     "defaultRequire": 1
